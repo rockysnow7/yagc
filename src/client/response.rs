@@ -7,9 +7,12 @@ use nom::{
     Parser,
 };
 
+/// The type of a MIME type.
 #[derive(Debug, PartialEq)]
 pub enum MimeTypeType {
+    /// A Gemtext document (`text/gemini`).
     TextGemini,
+    /// A plain text document (`text/plain`).
     TextPlain,
 }
 
@@ -22,9 +25,12 @@ impl ToString for MimeTypeType {
     }
 }
 
+/// A character set.
 #[derive(Debug, PartialEq)]
 pub enum Charset {
+    /// UTF-8.
     Utf8,
+    /// US-ASCII.
     UsAscii,
 }
 
@@ -37,9 +43,12 @@ impl ToString for Charset {
     }
 }
 
+/// A MIME type.
 #[derive(Debug, PartialEq)]
 pub struct MimeType {
+    /// The type of the MIME type.
     pub mime_type: MimeTypeType,
+    /// The character set of the MIME type.
     pub charset: Charset,
 }
 
@@ -50,31 +59,108 @@ impl ToString for MimeType {
 }
 
 impl MimeType {
+    /// Create a new `MimeType`.
     pub fn new(mime_type: MimeTypeType, charset: Option<Charset>) -> Self {
         Self { mime_type, charset: charset.unwrap_or(Charset::Utf8) }
     }
 }
 
+/// A response to a request.
+/// See [gemini://geminiprotocol.net/docs/protocol-specification.gmi](gemini://geminiprotocol.net/docs/protocol-specification.gmi) for more information on what these mean and how they should be handled.
 #[derive(Debug, PartialEq)]
 pub enum Response {
-    Input { prompt: String },
-    SensitiveInput { prompt: String },
-    Success { body_mime_type: MimeType, body: String },
-    TemporaryRedirect { url: String },
-    PermanentRedirect { url: String },
-    TemporaryFailure { information: String },
-    ServerUnavailable { information: String },
-    CGIError { information: String },
-    ProxyError { information: String },
-    SlowDown { information: String },
-    PermanentFailure { information: String },
-    NotFound { information: String },
-    Gone { information: String },
-    ProxyRequestRefused { information: String },
-    BadRequest { information: String },
-    ClientCertificateRequired { information: String },
-    CertificateNotAuthorized { information: String },
-    CertificateNotValid { information: String },
+    /// A request for input from the user.
+    Input {
+        /// The prompt that should be displayed to the user.
+        prompt: String,
+    },
+    /// A request for sensitive input from the user.
+    SensitiveInput {
+        /// The prompt that should be displayed to the user.
+        prompt: String,
+    },
+    /// A successful response.
+    Success {
+        /// The MIME type of the body.
+        body_mime_type: MimeType,
+        /// The body of the response.
+        body: String,
+    },
+    /// A temporary redirect to a new URL.
+    TemporaryRedirect {
+        /// The URL to redirect to.
+        url: String,
+    },
+    /// A permanent redirect to a new URL.
+    PermanentRedirect {
+        /// The URL to redirect to.
+        url: String,
+    },
+    /// A temporary failure.
+    TemporaryFailure {
+        /// Information about the failure.
+        information: String,
+    },
+    /// The server is currently unavailable.
+    ServerUnavailable {
+        /// Information about the failure.
+        information: String,
+    },
+    /// A CGI error.
+    CGIError {
+        /// Information about the failure.
+        information: String,
+    },
+    /// A proxy error.
+    ProxyError {
+        /// Information about the failure.
+        information: String,
+    },
+    /// A rate limit was enforced, the server is asking the client to slow down.
+    SlowDown {
+        /// Information about the failure.
+        information: String,
+    },
+    /// A permanent failure.
+    PermanentFailure {
+        /// Information about the failure.
+        information: String,
+    },
+    /// The requested resource was not found.
+    NotFound {
+        /// Information about the failure.
+        information: String,
+    },
+    /// The requested resource is no longer available.
+    Gone {
+        /// Information about the failure.
+        information: String,
+    },
+    /// The proxy request was refused.
+    ProxyRequestRefused {
+        /// Information about the failure.
+        information: String,
+    },
+    /// The request was invalid.
+    BadRequest {
+        /// Information about the failure.
+        information: String,
+    },
+    /// A client certificate is required.
+    ClientCertificateRequired {
+        /// Information about the failure.
+        information: String,
+    },
+    /// The client certificate given was not authorized.
+    CertificateNotAuthorized {
+        /// Information about the failure.
+        information: String,
+    },
+    /// The client certificate given was not valid.
+    CertificateNotValid {
+        /// Information about the failure.
+        information: String,
+    },
 }
 
 fn format_response(response_code: u8, response_meta: &str, body: &str) -> String {
@@ -106,6 +192,7 @@ impl ToString for Response {
     }
 }
 
+// this is just a collection of parsers for the different response types
 impl Response {
     fn input_expected(input: &str) -> IResult<&str, Self> {
         let (input, response_code) = alt((tag("10"), tag("11"))).parse(input)?;

@@ -4,13 +4,19 @@ use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::client::danger::{ServerCertVerified, HandshakeSignatureValid};
 use sha2::{Sha256, Digest};
 
+/// The result of a TOFU verification.
 pub enum TofuResult {
+    /// The host is known and the certificate matches.
     Match,
+    /// The host is known but the certificate does not match.
     Mismatch,
+    /// The host is unknown.
     Unknown,
+    /// The host was just learned.
     New,
 }
 
+/// A trust-on-first-use (TOFU) store for hostnames and their certificate fingerprints.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TofuStore {
     path: String,
@@ -18,6 +24,7 @@ pub struct TofuStore {
 }
 
 impl TofuStore {
+    /// Load a TOFU store from a file.
     fn load_from_disk(path: String) -> Self {
         let file = File::open(path).unwrap();
         let reader = BufReader::new(file);
@@ -26,6 +33,7 @@ impl TofuStore {
         tofu
     }
 
+    /// Create a new TOFU store, loading from a file if it already exists.
     pub fn new(path: String) -> Result<Self, String> {
         if !path.ends_with(".json") {
             return Err("Tofu store path must end with .json".to_string());
@@ -38,6 +46,7 @@ impl TofuStore {
         })
     }
 
+    /// Save the TOFU store to a file.
     fn save_to_disk(&self) -> Result<(), String> {
         let file = File::create(&self.path).map_err(|e| e.to_string())?;
         let writer = BufWriter::new(file);
@@ -46,12 +55,14 @@ impl TofuStore {
         Ok(())
     }
 
+    /// Save a new host and its fingerprint to the store.
     fn learn_host(&mut self, hostname: String, fingerprint: String) -> Result<(), String> {
         self.known_hosts.insert(hostname, fingerprint);
 
         self.save_to_disk()
     }
 
+    /// Verify that the fingerprint of the received certificate matches the known fingerprint for the hostname.
     fn verify_host(&self, hostname: &String, claimed_fingerprint: &String) -> TofuResult {
         let known_fingerprint = self.known_hosts.get(hostname);
 
@@ -62,6 +73,8 @@ impl TofuStore {
         }
     }
 
+    /// Verify that the fingerprint of the received certificate matches the known fingerprint for the hostname, or learn the host if it is unknown.
+    /// If the host is known but the certificate does not match, return a mismatch.
     pub fn verify_or_learn_host(&mut self, hostname: &String, claimed_fingerprint: &String) -> Result<TofuResult, String> {
         match self.verify_host(hostname, claimed_fingerprint) {
             TofuResult::Match => Ok(TofuResult::Match),
@@ -76,6 +89,7 @@ impl TofuStore {
     }
 }
 
+/// A TOFU `ServerCertVerifier` for TLS connections.
 #[derive(Debug)]
 pub struct TofuVerifier {
     store: std::sync::RwLock<TofuStore>,

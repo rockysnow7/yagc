@@ -1,9 +1,9 @@
-mod request;
-mod response;
+pub mod request;
+pub mod response;
 mod tofu;
 
 use crate::url::URL;
-pub use request::Request;
+use request::Request;
 use response::Response;
 use std::sync::Arc;
 use tofu::{TofuStore, TofuVerifier};
@@ -14,24 +14,32 @@ use tokio::{
 use tokio_rustls::{client::TlsStream, TlsConnector};
 use rustls::pki_types::ServerName;
 
+/// An error that can occur when the client tries to do something.
 #[allow(dead_code)]
 #[derive(Debug)]
 pub enum ClientError {
+    /// The request is too long (more than 1024 bytes).
     RequestTooLong(String),
+    /// The host address could not be resolved.
     FailedToResolveHostAddress(String),
+    /// The connection to the host could not be established.
     FailedToConnectToHost(String),
+    /// A response from the host was received but could not be parsed.
     FailedToReadResponse(String),
 }
 
+/// A client for the Gemini protocol.
 pub struct Client {
     tofu_store: TofuStore,
 }
 
 impl Client {
+    /// Create a new client with a TOFU store loaded from the default path.
     pub fn new() -> Self {
         Self { tofu_store: TofuStore::new("known_hosts.json".to_string()).unwrap() }
     }
 
+    /// Establish a TLS connection with a host.
     async fn establish_tls_connection(&self, url: &URL) -> Result<TlsStream<TcpStream>, ClientError> {
         // get the hostname and port from the url
         let (hostname, port) = if let Some(host) = &url.host {
@@ -65,6 +73,7 @@ impl Client {
         Ok(tls_stream)
     }
 
+    /// Send a request to the host and return the response/error.
     pub async fn send_request(&self, request: Request) -> Result<Response, ClientError> {
         if !request.is_valid_length() {
             let length = request.0.to_string().as_bytes().len();
