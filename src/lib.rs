@@ -14,6 +14,8 @@ mod url;
 pub use client::{
     Client,
     ClientError,
+    TlsConnection,
+    TlsProtocolVersion,
     request::Request,
     response::{Response, MimeType, MimeTypeType, Charset},
 };

@@ -9,17 +9,22 @@ This is **not** a browser, it is a Rust crate which may be used for implementing
 ## Usage
 
 ```rust
-use yagc::{Client, URL, Request};
+use yagc::{Client, URL, Request, TlsProtocolVersion};
 
 #[tokio::main]
 async fn main() {
-    let client = Client::new();
-
     let url = URL::try_from("gemini://geminiprotocol.net/docs/protocol-specification.gmi").unwrap();
     let request = Request(url);
 
-    let response = client.send_request(request).await;
-    println!("{response:#?}");
+    let client = Client::new();
+    let mut connection = client.establish_tls_connection(&request.0).await.unwrap();
+
+    if connection.protocol_version == TlsProtocolVersion::Tls1_3 {
+        let response = client.send_request(request, &mut connection).await.unwrap();
+        println!("{response:#?}");
+    } else {
+        println!("TLS 1.3 is required");
+    }
 }
 ```
 
