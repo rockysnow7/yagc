@@ -17,6 +17,6 @@ pub use client::{
     TlsConnection,
     TlsProtocolVersion,
     request::Request,
-    response::{Response, MimeType, MimeTypeType, Charset},
+    response::{Response, MimeType},
 };
 pub use url::{URL, URLBuilder, Host, Scheme};

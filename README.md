@@ -33,11 +33,8 @@ yagc supports:
 - Parsing or manually building URLs with the `gemini` or `about` schemes.
 - Sending TLS-encrypted requests and receiving responses from Gemini servers.
 - Trust-on-first-use (TOFU) certificate verification.
-- Accepts `text/plain` or `text/gemini` MIME types and `utf-8` or `us-ascii` character sets.
 
 ## TODO
 
 - A more secure certificate verification system.
-- More schemes.
-- More MIME types.
-- More character sets.
+- Maybe don't use an enum for schemes?

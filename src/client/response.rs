@@ -1,67 +1,53 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_until},
+    bytes::complete::{tag, take_till, take_until},
     combinator::opt,
     sequence::preceded,
     IResult,
     Parser,
 };
 
-/// The type of a MIME type.
-#[derive(Debug, PartialEq)]
-pub enum MimeTypeType {
-    /// A Gemtext document (`text/gemini`).
-    TextGemini,
-    /// A plain text document (`text/plain`).
-    TextPlain,
-}
-
-impl ToString for MimeTypeType {
-    fn to_string(&self) -> String {
-        match self {
-            Self::TextPlain => "text/plain",
-            Self::TextGemini => "text/gemini",
-        }.to_string()
-    }
-}
-
-/// A character set.
-#[derive(Debug, PartialEq)]
-pub enum Charset {
-    /// UTF-8.
-    Utf8,
-    /// US-ASCII.
-    UsAscii,
-}
-
-impl ToString for Charset {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Utf8 => "utf-8",
-            Self::UsAscii => "us-ascii",
-        }.to_string()
-    }
-}
+const DEFAULT_CHARSET: &str = "utf-8";
+const DEFAULT_LANGUAGES: &[&str] = &["en"];
 
 /// A MIME type.
 #[derive(Debug, PartialEq)]
 pub struct MimeType {
     /// The type of the MIME type.
-    pub mime_type: MimeTypeType,
+    pub mime_type_type: String,
     /// The character set of the MIME type.
-    pub charset: Charset,
+    pub charset: String,
+    /// The languages of the MIME type.
+    pub languages: Vec<String>,
 }
 
 impl ToString for MimeType {
     fn to_string(&self) -> String {
-        format!("{};charset={}", self.mime_type.to_string(), self.charset.to_string())
+        let languages = self.languages.join(",");
+
+        format!(
+            "{};charset={};lang={}",
+            self.mime_type_type.to_string(),
+            self.charset.to_string(),
+            languages,
+        )
     }
 }
 
 impl MimeType {
     /// Create a new `MimeType`.
-    pub fn new(mime_type: MimeTypeType, charset: Option<Charset>) -> Self {
-        Self { mime_type, charset: charset.unwrap_or(Charset::Utf8) }
+    pub fn new(mime_type_type: &str, charset: Option<&str>, languages: Option<Vec<&str>>) -> Self {
+        let mime_type_type = mime_type_type.to_string();
+        let charset = charset
+            .unwrap_or(DEFAULT_CHARSET)
+            .to_string();
+        let languages = languages
+            .unwrap_or(DEFAULT_LANGUAGES.to_vec())
+            .iter()
+            .map(|l| l.to_string())
+            .collect();
+
+        Self { mime_type_type, charset, languages }
     }
 }
 
@@ -209,32 +195,42 @@ impl Response {
         Ok((input, response))
     }
 
-    fn charset(input: &str) -> IResult<&str, Charset> {
-        let (input, charset) = alt((tag("utf-8"), tag("us-ascii"))).parse(input)?;
+    fn mime_type_type(input: &str) -> IResult<&str, &str> {
+        take_till(|c| c == ';' || c == '\r').parse(input)
+    }
 
-        let charset = match charset {
-            "utf-8" => Charset::Utf8,
-            "us-ascii" => Charset::UsAscii,
-            _ => unreachable!(),
-        };
+    fn charset(input: &str) -> IResult<&str, &str> {
+        preceded(
+            (tag(";"), opt(tag(" ")), tag("charset=")),
+            take_till(|c| c == ';' || c == '\r'),
+        ).parse(input)
+    }
 
-        Ok((input, charset))
+    fn languages(input: &str) -> IResult<&str, Vec<&str>> {
+        preceded(
+            (tag(";"), opt(tag(" ")), tag("lang=")),
+            take_till(|c| c == ';' || c == '\r'),
+        )
+        .parse(input)
+        .map(|(input, languages)| {
+            let languages = languages.split(',').collect();
+
+            (input, languages)
+        })
     }
 
     fn mime_type(input: &str) -> IResult<&str, MimeType> {
-        let (input, mime_type) = alt((tag("text/plain"), tag("text/gemini"))).parse(input)?;
-        let (input, charset) = opt(preceded(
-            tag(";charset="),
-            Self::charset,
-        )).parse(input)?;
+        (
+            Self::mime_type_type,
+            opt(Self::charset),
+            opt(Self::languages),
+        )
+        .parse(input)
+        .map(|(input, (mime_type_type, charset, languages))| {
+            let mime_type = MimeType::new(mime_type_type, charset, languages);
 
-        let mime_type = match mime_type {
-            "text/plain" => MimeType::new(MimeTypeType::TextPlain, charset),
-            "text/gemini" => MimeType::new(MimeTypeType::TextGemini, charset),
-            _ => unreachable!(),
-        };
-
-        Ok((input, mime_type))
+            (input, mime_type)
+        })
     }
 
     fn success(input: &str) -> IResult<&str, Self> {
@@ -364,7 +360,11 @@ mod tests {
     fn success_without_charset() {
         let response = Response::try_from("20 text/plain\r\nHello, world!");
         assert_eq!(response, Ok(Response::Success {
-            body_mime_type: MimeType::new(MimeTypeType::TextPlain, Some(Charset::Utf8)),
+            body_mime_type: MimeType::new(
+                "text/plain",
+                Some("utf-8"),
+                Some(vec!["en"]),
+            ),
             body: "Hello, world!".to_string(),
         }));
     }
@@ -373,7 +373,24 @@ mod tests {
     fn success_with_charset() {
         let response = Response::try_from("20 text/plain;charset=us-ascii\r\nHello, world!");
         assert_eq!(response, Ok(Response::Success {
-            body_mime_type: MimeType::new(MimeTypeType::TextPlain, Some(Charset::UsAscii)),
+            body_mime_type: MimeType::new(
+                "text/plain",
+                Some("us-ascii"),
+                Some(vec!["en"]),
+            ),
+            body: "Hello, world!".to_string(),
+        }));
+    }
+
+    #[test]
+    fn success_with_languages() {
+        let response = Response::try_from("20 text/plain;lang=fr,zh-Hans-CN\r\nHello, world!");
+        assert_eq!(response, Ok(Response::Success {
+            body_mime_type: MimeType::new(
+                "text/plain",
+                Some("utf-8"),
+                Some(vec!["fr", "zh-Hans-CN"]),
+            ),
             body: "Hello, world!".to_string(),
         }));
     }
