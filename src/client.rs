@@ -117,9 +117,7 @@ impl Client {
             .map_err(|_| ClientError::FailedToReadResponse("Failed to read response".to_string()))?;
 
         let response_string = String::from_utf8_lossy(&buffer);
-        println!("{response_string:?}");
 
-        // Response::try_from(String::from_utf8_lossy(&buffer).as_ref()).map_err(|e| ClientError::FailedToReadResponse(e))
         Response::try_from(response_string.as_ref()).map_err(|e| ClientError::FailedToReadResponse(e))
     }
 }
