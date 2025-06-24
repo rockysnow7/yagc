@@ -38,7 +38,7 @@ impl ToString for Host {
 }
 
 /// A URL to a Gemini resource.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct URL {
     /// The scheme part of the URL.
     pub scheme: Scheme,
